@@ -10,11 +10,16 @@ curl \
 python3 \
 make \
 g++ \
+unzip \
 && rm -rf /var/lib/apt/lists/*
 
-# Install Bun (openclaw build uses it)
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Install Bun (openclaw build uses it) – pin to a stable version
+ARG BUN_VERSION=1.1.17
+RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" -o /tmp/bun.zip \
+&& unzip -q /tmp/bun.zip -d /tmp/bun \
+&& mv /tmp/bun/bun-linux-x64/bun /usr/local/bin/bun \
+&& rm -rf /tmp/bun /tmp/bun.zip
+ENV PATH="/usr/local/bin:${PATH}"
 
 RUN corepack enable
 
@@ -25,7 +30,6 @@ ARG OPENCLAW_GIT_REF=main
 RUN git clone --depth 1 --branch "${OPENCLAW_GIT_REF}" https://github.com/openclaw/openclaw.git .
 
 # Patch: relax version requirements for packages that may reference unpublished versions.
-# Apply to all extension package.json files to handle workspace protocol (workspace:*).
 RUN set -eux; \
 find ./extensions -name 'package.json' -type f | while read -r f; do \
 sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*">=[^"]+"/"openclaw": "*"/g' "$f"; \
@@ -36,6 +40,7 @@ RUN pnpm install --no-frozen-lockfile
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:install && pnpm ui:build
+
 
 # Runtime image
 FROM node:22-bookworm
